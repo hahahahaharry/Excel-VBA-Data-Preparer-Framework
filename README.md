@@ -1,7 +1,7 @@
 # Excel-VBA-Data-Preparer-Framework
 A simple Excel VBA framework aimed at simplifying data manipulation in Excel.
-  - DataGrid(WIP): a customized class object which can read and store data from different data sources, perform data manipulation and export data.
-  - DataPreparer(WIP): a customized class object which can perform tasks that are common in Excel-related workflow automation projects.
+  - DataGrid: a customized class object which can read and store data from different data sources, perform data manipulation and export data.
+  - DataPreparer: a customized class object which can fill templates and interact with file system, fulfilling tasks that are common in workflow automation.
 
 Quick Example: 
 ```
