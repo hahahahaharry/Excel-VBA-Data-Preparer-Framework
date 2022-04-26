@@ -95,10 +95,11 @@ End Function
 Public Function load(dataSource As String, path As String) As Integer
 
 End Function
-Public Function loadFromRange(rng As Range, rngHasHeader As Boolean) As Variant
+Public Function loadFromRange(rng As Range, rngHasHeader As Boolean) As datagrid
 On Error GoTo errorHandler
+    Set loadFromRange = Me
     If rng.Areas.count = 1 Then
-        Dim rowNum As Integer, colNum As Integer
+        Dim rowNum As Long, colNum As Long
         Set colTypes = Nothing: Set header = Nothing: data = vbNull 'clear old header and data
         rowNum = rng.Rows.count
         colNum = rng.Columns.count
@@ -114,24 +115,25 @@ On Error GoTo errorHandler
             colSize = UBound(data, 2)
         End If
         Call initializeColTypes
-        loadFromRange = StatusCode.Pass
+        Debug.Print "loadFromRange Status: " & StatusCode.Pass
     Else
-        loadFromRange = StatusCode.Fail
+        Debug.Print "loadFromRange Status: " & StatusCode.Fail
     End If
+    
     Exit Function
 errorHandler:
-    loadFromRange = StatusCode.Error
+    Debug.Print "loadFromRange Status: " & StatusCode.Error
 End Function
-Public Function loadFromCSV(strFilePath As String, delimiter As String, hasHeader As Integer)
+Public Function loadFromCSV(strFilePath As String, delimiter As String, hasHeader As Integer) As datagrid
 
 End Function
 
 '================================================================================================
 '                                   Output Data
 '================================================================================================
-Public Function copy() As DataGrid
-    Dim result As DataGrid
-    Set result = New DataGrid
+Public Function copy() As datagrid
+    Dim result As datagrid
+    Set result = New datagrid
     Call result.setHeader(header)
     Call result.setData(data)
     Call result.validateSize
@@ -163,21 +165,39 @@ End Function
 Public Function toArray() As Variant
 
 End Function
-Public Function toRange(rng As Range)
+Public Function toRange(rng As Range, Optional expandRange As Boolean = False)
     Dim rngRowCount As Long: rngRowCount = rng.Rows.count
     Dim rngColCount As Long: rngColCount = rng.Columns.count
-    Dim i As Long, j As Long
+    Dim i As Long, j As Long, startRow As Long
     Dim headerKeys As Variant
-    If hasHeader Then headerKeys = header.Keys()
-    For i = 1 To rngRowCount
+    If rngRowCount < 1 Or rngColCount < 1 Then Exit Function
+    Call excelSetup(False, False, False)
+    If Not expandRange Then
+        rngRowCount = IIf(rngRowCount < rowSize, rngRowCount, rowSize)
+        rngColCount = IIf(rngColCount < colSize, rngColCount, colSize)
+    Else
+        rngRowCount = rowSize
+        rngColCount = colSize
+    End If
+    If hasHeader Then 'Write header if has header
+        headerKeys = header.Keys()
+        For j = 1 To rngColCount
+            rng.Cells(1, j).value = headerKeys(j - 1)
+        Next
+        startRow = 2
+    Else
+        startRow = 1
+    End If
+    For i = startRow To rngRowCount + startRow - 1
         For j = 1 To rngColCount
             If hasHeader Then
-                If i = 1 Then rng.Cells(1, j) = headerKeys(j - 1) Else rng.Cells(i, j) = data(i - 1, j)
+                rng.Cells(i, j).value = data(i - 1, j)
             Else
-                rng.Cells(i, j) = data(i, j)
+                rng.Cells(i, j).value = data(i, j)
             End If
         Next
     Next
+    Call excelSetup(True, True, True)
 End Function
 '================================================================================================
 '                                   Data Lookup
@@ -227,22 +247,27 @@ End Function
 '================================================================================================
 '                                   Data Transformation
 '================================================================================================
-Public Sub filterOut(colName As String, arrayValues, Optional blnExactMatch As Boolean = True)
-    If hasData = False Then Exit Sub
+Public Function filterOut(colName As String, arrayValues, Optional blnExactMatch As Boolean = True) As datagrid
+    Set filterOut = Me
+    If hasData = False Then Exit Function
     Call filter(colName, arrayValues, True, blnExactMatch)
-End Sub
-Public Sub filterIn(colName As String, arrayValues, Optional blnExactMatch As Boolean = True)
-    If hasData = False Then Exit Sub
+End Function
+Public Function filterIn(colName As String, arrayValues, Optional blnExactMatch As Boolean = True) As datagrid
+    Set filterIn = Me
+    If hasData = False Then Exit Function
     Call filter(colName, arrayValues, False, blnExactMatch)
-End Sub
-Public Function groupBy(colName As String, colNameArray As Variant, aggregation As CalcFunctionType) As Variant
-    If Not hasColumn(colName) Then groupBy = StatusCode.Error: Exit Function
-    If getDimension(colNameArray) = 0 And isValidDataType(colNameArray) Then colNameArray = Array(colNameArray) Else groupBy = StatusCode.Error: Exit Function
-    If checkHeader(colNameArray) <> StatusCode.Pass Then groupBy = StatusCode.Error: Exit Function
+End Function
+Public Function groupBy(aggregation As CalcFunctionType, colName As String, colNameArray As Variant) As datagrid
+    Set groupBy = Me
+    If Not hasColumn(colName) Then Debug.Print StatusCode.Error: Exit Function
+    If getDimension(colNameArray) = 0 Then
+        If isValidDataType(colNameArray) Then colNameArray = Array(colNameArray) Else Debug.Print StatusCode.Error: Exit Function
+    End If
+    If checkHeader(colNameArray) <> StatusCode.Pass Then Debug.Print StatusCode.Error: Exit Function
     Select Case aggregation
     Case CalcFunctionType.Sum
         Call evaluateColType(header(colName)) 'may be better deleted
-        If colTypes(header(colName)) = Type_Numeric Then Call groupBySum(colName, colNameArray): groupBy = StatusCode.Pass
+        If colTypes(header(colName)) = Type_Numeric Then Call groupBySum(colName, colNameArray): Debug.Print StatusCode.Pass
     Case CalcFunctionType.Average
         Call evaluateColType(header(colName))
         If colTypes(header(colName)) = Type_Numeric Then
@@ -288,6 +313,21 @@ Public Sub evaluateColType(colNum As Long)
     Next
     colTypes(colNum) = Type_Numeric
 End Sub
+Private Sub excelSetup(blnAutoCalc As Boolean, blnEvents As Boolean, blnScreen As Boolean, Optional blnAlerts As Boolean, Optional blnStatusBar As Boolean)
+    Dim vrtCalc As Variant
+    With Application
+        If blnAutoCalc = True Then
+            vrtCalc = xlCalculationAutomatic
+        ElseIf blnAutoCalc = False Then
+            vrtCalc = xlCalculationManual
+        End If
+        .Calculation = vrtCalc
+        .ScreenUpdating = blnScreen
+        .EnableEvents = blnEvents
+        .DisplayAlerts = blnAlerts
+        If Not IsMissing(blnStatusBar) Then .StatusBar = blnStatusBar
+    End With
+End Sub
 Private Function filter(colName As String, valArray As Variant, Optional blnFilterOut As Boolean = False, Optional blnExactMatch As Boolean = True) As Variant
     Dim row As Long, newRow As Long, col As Long, i As Long
     Dim newData() As Variant, arrayCriteria As Variant
@@ -314,7 +354,7 @@ Private Function filter(colName As String, valArray As Variant, Optional blnFilt
     Me.validateSize
 End Function
 Private Function getDictionaryFromArray(arr As Variant, Optional blnGetByRow As Boolean = True, Optional dict As scripting.Dictionary) As scripting.Dictionary
-    Dim i As Long, arrRowSize As Long, arrRowSize As Long
+    Dim i As Long, arrRowSize As Long, arrColSize As Long
     Dim dCount As Integer
     Dim dictResult As scripting.Dictionary
     Dim varKey As Variant, varVal As Variant
@@ -331,7 +371,7 @@ Private Function getDictionaryFromArray(arr As Variant, Optional blnGetByRow As 
         Next
     ElseIf dCount = 2 Then '2-D array, read by row
         arrRowSize = UBound(arr, 1) - LBound(arr, 1) + 1
-        arrRowSize = UBound(arr, 2) - LBound(arr, 2) + 1
+        arrColSize = UBound(arr, 2) - LBound(arr, 2) + 1
         If blnGetByRow Then
             For i = LBound(arr, 2) To UBound(arr, 2) 'loop through column
                 varKey = CStr(arr(LBound(arr, 1), i))
@@ -343,7 +383,7 @@ Private Function getDictionaryFromArray(arr As Variant, Optional blnGetByRow As 
         Else '2-D array, read by col
             For i = LBound(arr, 1) To UBound(arr, 1) 'loop through rows
                 varKey = CStr(arr(i, LBound(arr, 2)))
-                If arrRowSize > 1 Then varVal = arr(i, LBound(arr, 2) + 1) Else varVal = i
+                If arrColSize > 1 Then varVal = arr(i, LBound(arr, 2) + 1) Else varVal = i
                 If varKey = vbNullString Then varKey = "Row" & i
                 If dictResult.Exists(varKey) Then varKey = varKey & "1"
                 Call dictResult.Add(varKey, varVal)
@@ -414,7 +454,7 @@ End Function
 Private Function isInArray(val As Variant, arr As Variant, Optional blnExactMatch As Boolean = True) As Boolean
     Dim element As Variant, searchStr As String
     Dim valVarType As Variant
-    If Not isValidDataType(val) Then Exit Function
+    If Not isValidDataType(val) And varType(val) <> vbEmpty Then Exit Function
     searchStr = CStr(val)
     If blnExactMatch Then
         For Each element In arr
@@ -465,30 +505,25 @@ Private Function printArrayToConsole(InputArray As Variant)
 End Function
 Private Function resizeArray(data As Variant, x As Long, y As Long) As Variant
     Dim dCount As Integer: dCount = getDimension(data)
-    If dCount = 2 And x >= 0 And y >= 0 Then
-        Dim lRow As Long, lCol As Long
-        lRow = UBound(data, 1)
-        lCol = UBound(data, 2)
-        'Resize Col
-        If y <= 1 Then
-            ReDim data(1 To lRow, 1 To 1)
-        Else
-            ReDim Preserve data(1 To lRow, 1 To y)
-        End If
-        'Resize Row
-        data = Application.WorksheetFunction.transpose(data)
-        If x <= 1 Then
-            If y <= 1 Then ReDim data(1 To 1, 1 To 1) Else ReDim Preserve data(1 To y, 1 To 1)
-            Dim index As Long: Dim oneRowArray As Variant: ReDim oneRowArray(1 To 1, 1 To y)
-            For index = 1 To y
-                oneRowArray(1, index) = data(index, 1)
-            Next
-            resizeArray = oneRowArray
-        Else
-            ReDim Preserve data(1 To y, 1 To x)
-            resizeArray = Application.WorksheetFunction.transpose(data)
-        End If
+    If dCount <> 2 Then resizeArray = data: Exit Function
+    Dim dataRowSize As Long: dataRowSize = UBound(data, 1)
+    Dim dataColSize As Long: dataColSize = UBound(data, 2)
+    If x < 1 Or y < 1 Then
+        ReDim data(1 To 1, 1 To 1)
+        resizeArray = data: Exit Function
     Else
-        resizeArray = data
+        x = Application.WorksheetFunction.Min(x, dataRowSize)
+        y = Application.WorksheetFunction.Min(y, dataColSize)
+        'Resize Col
+        ReDim Preserve data(1 To dataRowSize, 1 To y)
+        'Resize Row
+        Dim newData As Variant, i As Long, j As Long
+        ReDim newData(1 To x, 1 To y)
+        For i = 1 To x
+            For j = 1 To y
+                newData(i, j) = data(i, j)
+            Next
+        Next
     End If
+    resizeArray = newData
 End Function
