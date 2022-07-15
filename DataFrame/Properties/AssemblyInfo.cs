@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("DataFrame")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("DataPreparer")]
+[assembly: AssemblyDescription("DataPreparer for quick data manipulation")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("DataFrame")]
+[assembly: AssemblyCompany("HarryWeb")]
+[assembly: AssemblyProduct("DataPreparer")]
 [assembly: AssemblyCopyright("Copyright ©  2022")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -17,7 +17,7 @@ using System.Runtime.InteropServices;
 // Setting ComVisible to false makes the types in this assembly not visible
 // to COM components.  If you need to access a type in this assembly from
 // COM, set the ComVisible attribute to true on that type.
-[assembly: ComVisible(false)]
+[assembly: ComVisible(true)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
 [assembly: Guid("1245a851-be00-4519-8f4f-24fae2f25706")]
